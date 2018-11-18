@@ -1,0 +1,85 @@
+- name: Install
+  hosts: all
+  tasks:
+    - name: add i386 architecture
+      become: true
+      command: "dpkg --add-architecture i386"
+    - name: add universe
+      become: true
+      command: "add-apt-repository universe"
+    - name: update system
+      become: true
+      apt:
+        upgrade: yes
+        update_cache: yes
+    - name: add wine repo key
+      become: true
+      apt_key:
+        url: "https://dl.winehq.org/wine-builds/Release.key"
+        state: present
+    - name: add wine repo
+      become: true
+      apt_repository:
+        repo: "deb http://dl.winehq.org/wine-builds/ubuntu/ bionic main"
+        state: present
+    - name: install wine
+      become: true
+      apt:
+        install_recommends: yes
+        name: "winehq-staging"
+    - name: install other packages
+      become: true
+      apt:
+        name: ["winetricks", "xvfb", "imagemagick", "python3-venv"]
+    - name: set up wine prefix
+      command: "WINEPREFIX={{path}}/.wine winecfg"
+      args:
+        creates: "{{path}}/.wine"
+    - name: install directplay
+      command: winetricks directplay
+    - name: turn off csmt
+      command: winetricks csmt=off
+    - name: make Microsoft Games directory
+      file:
+        path: "{{path}}/.wine/drive_c/Program Files (x86)/Microsoft Games"
+        state: directory
+    - name: copy registry entries
+      copy:
+        src: registry_update.reg
+        dest: "{{path}}/"
+    - name: copy game assets
+      copy:
+        src: "{{game}}"
+        dest: "{{path}}/"
+    - name: extract game assets
+      unarchive:
+        remote_src: yes
+        src: "{{path}}/{{game | basename}}"
+        dest: "{{path}}/.wine/drive_c/Program Files (x86)/Microsoft Games/"
+        creates: "{{path}}/.wine/drive_c/Program Files (x86)/Microsoft Games/Age of Empires II"
+    - name: copy fonts
+      unarchive:
+        src: fonts.tar.gz
+        dest: ~/.wine/drive_c/windows/Fonts/
+    - name: copy aoc-headless python module
+      copy:
+        src: ../python
+        dest: "{{path}}/"
+    - name: copy test recorded game
+      copy:
+        src: test.mgz
+        dest: "{{path}}/"
+    - name: update registry
+      command: "wine regedit registry_update.reg"
+    - name: create python virtual environment
+      pip:
+        name: [pip, wheel]
+        state: latest
+        virtualenv: "{{path}}/venv"
+        virtualenv_command: "/usr/bin/python3 -m venv"
+    - name: install aoc-headless
+      pip:
+        chdir: "{{path}}/python"
+        name: "."
+        editable: true
+        virtualenv: "{{path}}/venv"

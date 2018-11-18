@@ -1,0 +1,5 @@
+venv
+*.retry
+*.egg-info
+__pycache__
+ansible/hosts
